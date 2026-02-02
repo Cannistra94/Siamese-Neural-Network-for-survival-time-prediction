@@ -1,0 +1,6 @@
+history = siamese1.fit(
+    [x_train_1, x_train_2],
+    labels_tr,
+    validation_data=([x_val_1, x_val_2], labels_val),
+    batch_size=64,
+    epochs=50)
