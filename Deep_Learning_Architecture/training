@@ -1,3 +1,83 @@
+def make_K_fold_Split(img, id, label, patients_id_per_set, maxi=None, mini=None, rescale_m0_p1=True):
+    """Function to create the training, validation and test set at slices level, based on the splits at patients level
+    Args:
+        img: tensor of shape [(N_slices, height, width, channel)] (dtype float64) representing the slices data
+        id: tensor of shape [(N_slices, 1)] (type U10) representing the id associated to each slice
+        label: tensor of shape [(N_slices, 1)] (dtype uint8) representing the label associated to each slice
+             (one for adaptive, zero for not adaptive)
+        patients_id_per_set: tensor of shape [(N_patients_SET, 1)] (type U10) representing the id associated to
+            each patient for the current kfold set
+        maxi:
+        mini:
+        rescale_m0_p1:
+    Returns:
+        X_set, y_set, id_set: respectively tensor of 2D slices, label and id for the current set
+    """
+    X_set = []
+    y_set = []
+    id_set = []
+
+    for n in range(patients_id_per_set.shape[0]):
+        for idx in range(img.shape[0]):
+            if id[idx] == patients_id_per_set[n]:
+                X_set.append(img[idx])
+                y_set.append(label[idx])
+                id_set.append(id[idx])
+
+    X_set = np.asarray(X_set, dtype=float)
+    y_set = np.asarray(y_set, dtype='uint8')
+    id_set = np.asarray(id_set)
+
+    if (maxi or mini) is None:
+        maxi, mini = np.max(X_set), np.min(X_set)
+    if rescale_m0_p1:
+        X_set = rescale(np.asarray(X_set), maxi, mini)
+
+    return X_set, y_set, id_set, maxi, mini
+
+
+def call(idx, n_test_samples, n_valid_samples, patient_id, label_id, check=False):
+    """ Function to divide the training, validation and test sets at PATIENTS level, instead of on single slices
+     avoiding that slices of the same patient are both in the training and test set.
+    Args:
+        idx: int value representing the current kfold step
+        n_test_samples: int value representing the number of patients in test set
+        n_valid_samples: int value representing the number of patients in validation set
+        patient_id: [(N_patients, 1)] numpy array of Unicode string of maximum length 10 (U10) representing
+             patients id
+        label_id: [(N_patients, 1)] numpy array of dtype uint8 representing the patients label
+        check: boolean variable to control if in validation set there are samples of both classes
+    Returns:
+        six items containing ids and labels splitted for each set (training, validation, test) at
+        patient level
+    """
+    print("\n[INFO] Processing iter #{} ".format(idx))
+    index = np.arange(patient_id.shape[0])
+    test_index = index[idx * n_test_samples: (idx + 1) * n_test_samples]
+    train_val_index = np.concatenate([index[: idx * n_test_samples], index[(idx + 1) * n_test_samples :]],
+                                     axis=0)
+
+    val_index = resample(train_val_index, replace=False, random_state=42, n_samples=n_valid_samples)
+
+    while not check:
+        if np.unique(label_id[np.asarray(val_index)]).shape[0] < 2:
+            print("[INFO]: Only one class on validation set!")
+            val_index = resample(train_val_index, replace=False, random_state=self.seed + 1,
+                                 n_samples=n_valid_samples)
+        else:
+            check = True
+
+    train_index = np.asarray([x for x in train_val_index if x not in val_index])
+    
+    return patient_id[train_index], label_id[train_index], patient_id[val_index], label_id[val_index], patient_id[test_index], label_id[test_index]
+
+def shuffle(data, label):
+        """ Function to shuffle the data
+        """
+        np.random.seed(42)
+        index = np.random.choice(data.shape[1], size=data.shape[1], replace=False)
+        return data[:,index], label[index]
+
 history = siamese1.fit(
     [x_train_1, x_train_2],
     labels_tr,
